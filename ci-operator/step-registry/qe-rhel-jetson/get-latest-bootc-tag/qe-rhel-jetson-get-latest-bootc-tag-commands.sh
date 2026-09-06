@@ -50,13 +50,16 @@ while [[ ${PAGE} -le ${MAX_PAGES} ]]; do
   PAGE=$((PAGE + 1))
 done
 
+echo "=== Tag Filtering Debug ==="
+echo "Total tags fetched: $(echo "${ALL_TAGS}" | jq 'length')"
+
 # Filter to only valid bootc image tags:
 # - Must contain version numbers (match pattern with digits and dots/underscores)
 # - Exclude SHA256 tags (sha256-*)
 # - Exclude metadata tags (.att, .sig, .sbom, .src, .dockerfile, .git, .customscript, .prefetch)
 # - Exclude build pipeline tags (*-build-images, *-on-push-*, *-on-pull-request-*)
 # - Exclude plain numeric tags (git commit hashes like 090326141439)
-LATEST_TAG=$(echo "${ALL_TAGS}" | \
+VALID_TAGS=$(echo "${ALL_TAGS}" | \
   jq -r '
     map(select(
       (.name | test("^sha256-") | not) and
@@ -67,9 +70,14 @@ LATEST_TAG=$(echo "${ALL_TAGS}" | \
       (.name | test("[0-9]+\\.[0-9]+"))
     )) |
     sort_by(.last_modified) |
-    reverse |
-    .[0].name
+    reverse
   ')
+
+echo "Valid bootc image tags found: $(echo "${VALID_TAGS}" | jq 'length')"
+echo "Top 5 valid tags (newest first):"
+echo "${VALID_TAGS}" | jq -r '.[0:5] | .[] | "  - \(.name) (modified: \(.last_modified))"'
+
+LATEST_TAG=$(echo "${VALID_TAGS}" | jq -r '.[0].name')
 
 if [[ -z "${LATEST_TAG}" || "${LATEST_TAG}" == "null" ]]; then
   echo "ERROR: Failed to fetch latest tag from Quay API"
